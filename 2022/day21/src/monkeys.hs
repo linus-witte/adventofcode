@@ -1,5 +1,6 @@
 import System.IO
 import Text.Printf
+import System.Environment (getArgs)
 ---------------------- IO Stuff for input file reading ----------------------
 
 -- Function to read a file line by line and format each line into a list of strings
@@ -58,5 +59,7 @@ computeMonkey _ _ = error "Error computeMonkey"
 
 main :: IO ()
 main = do
-    lines <- readFileLines "input"
-    printf "%.0f\n" (computeMonkey lines (getEntry lines "root"))
+    a <- getArgs 
+    print a
+    -- lines <- readFileLines "../src/input"
+    -- printf "%.0f\n" (computeMonkey lines (getEntry lines "root"))
