@@ -125,4 +125,4 @@ main = do
     let tree = createTree lines (getEntry lines "root")
     printf "root = %.0f\n\n" (evaluate tree)
     putStrLn "Part 2:"
-    printf "humn = %1f\n\n" (part2 tree "humn")
+    printf "humn = %.0f\n\n" (part2 tree "humn")
