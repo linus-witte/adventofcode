@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-{-# HLINT ignore "Avoid reverse" #-}
 import System.IO
 import Text.Printf
 import System.Environment (getArgs, getExecutablePath)
