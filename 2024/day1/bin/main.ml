@@ -14,4 +14,9 @@ let () =
     | _ -> None 
     ) in
 
-  Stdio.printf "%i\n" (Sequence.fold diff ~init:0 ~f:(+))
+  Stdio.printf "part1: %i\n" (Sequence.fold diff ~init:0 ~f:(+));
+
+  let res = List.map l ~f:(fun x -> List.count r ~f:(fun y -> (x = y)) |> (Int.( * ) x)) in
+
+  Stdio.printf "part2: %i\n" (List.fold res ~init:0 ~f:(+));
+
