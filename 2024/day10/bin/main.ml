@@ -52,17 +52,22 @@ let () =
     |> List.concat
     |> List.filter ~f:(fun path -> List.length path = 10)
     |> List.map ~f:(fun path -> (List.nth_exn path 0, List.nth_exn path 9))
-    |> List.dedup_and_sort ~compare:(fun ((sx1, sy1), (tx1, ty1)) ((sx2, sy2), (tx2, ty2)) ->
-           match Int.compare sx1 sx2 with
-           | 0 -> (
-               match Int.compare sy1 sy2 with
-               | 0 -> (
-                   match Int.compare tx1 tx2 with
-                   | 0 -> Int.compare ty1 ty2
-                   | diff -> diff)
-               | diff -> diff)
-           | diff -> diff)
   in
 
-  List.iter connections ~f:(fun ((sx, sy), (tx, ty)) -> Stdio.printf "(%i,%i) -> (%i, %i)\n" sx sy tx ty);
-  Stdio.printf "Part 1: %i" (List.length connections)
+  let part1 =
+    List.dedup_and_sort
+      ~compare:(fun ((sx1, sy1), (tx1, ty1)) ((sx2, sy2), (tx2, ty2)) ->
+        match Int.compare sx1 sx2 with
+        | 0 -> (
+            match Int.compare sy1 sy2 with
+            | 0 -> (
+                match Int.compare tx1 tx2 with
+                | 0 -> Int.compare ty1 ty2
+                | diff -> diff)
+            | diff -> diff)
+        | diff -> diff)
+      connections
+  in
+
+  Stdio.printf "Part 1: %i\n" (List.length part1);
+  Stdio.printf "Part 2: %i\n" (List.length connections)
