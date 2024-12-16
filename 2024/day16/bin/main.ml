@@ -23,8 +23,11 @@ let dijstra ~(neighbors : 'a -> ('a * float) list) ~equal ~(start : 'a) =
         let tentative_distance = find_in_hashtable distances current ~default:Float.infinity +. cost in
         if tentative_distance < find_in_hashtable distances n ~default:Float.infinity then (
           Hashtbl.replace distances n tentative_distance;
-          Hashtbl.replace predecessor n current;
-          PriorityQueue.push queue n tentative_distance))
+          Hashtbl.replace predecessor n [ current ];
+          PriorityQueue.push queue n tentative_distance)
+        else if tentative_distance <= find_in_hashtable distances n ~default:Float.infinity then
+          Hashtbl.replace predecessor n (current :: Hashtbl.find predecessor n);
+        ())
   done;
   predecessor
 
@@ -47,10 +50,12 @@ let neighbors map (pos, dir) =
 
 
 let rec trace_back predecessors start =
-  if Hashtbl.mem predecessors start then
-    start :: trace_back predecessors (Hashtbl.find predecessors start)
+  if not (Hashtbl.mem predecessors start) then
+    [ [ start ] ]
   else
-    [ start ]
+    let preds = Hashtbl.find predecessors start in
+    List.concat_map preds ~f:(fun pred ->
+        List.map (trace_back predecessors pred) ~f:(fun path -> start :: path))
 
 
 let path_cost path =
@@ -68,6 +73,13 @@ let path_cost path =
   Int.of_float !cost - 1
 
 
+let count_unique_positions paths =
+  let table = Hashtbl.create 16 in
+
+  List.iter paths ~f:(fun path -> List.iter path ~f:(fun (pos, _) -> Hashtbl.replace table pos 0));
+  Hashtbl.length table
+
+
 let () =
   let map = Util.InputReader.read_lines ~path:"input" ~f:String.to_array |> List.to_array in
   let predecessors =
@@ -76,5 +88,6 @@ let () =
       ~start:(find map 'E', (0, 1))
   in
 
-  let best_path = trace_back predecessors (find map 'S', (1, 0)) in
-  Stdio.printf "Part1: %i\n" (path_cost best_path)
+  let best_paths = trace_back predecessors (find map 'S', (1, 0)) in
+  Stdio.printf "Part1: %i\n" (List.hd_exn best_paths |> path_cost);
+  Stdio.printf "Part2: %i\n" (count_unique_positions best_paths)
