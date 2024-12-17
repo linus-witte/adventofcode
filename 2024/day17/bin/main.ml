@@ -3,7 +3,14 @@ open Util
 
 let trim s = Stdlib.String.trim s
 
-type chip = { mutable a : int; mutable b : int; mutable c : int; mutable ip : int; instructions : int array }
+type chip = {
+  mutable a : int;
+  mutable b : int;
+  mutable c : int;
+  mutable ip : int;
+  instructions : int array;
+  mutable out_channel : int list;
+}
 
 let fetch_opcode chip =
   let opcode = chip.instructions.(chip.ip) in
@@ -22,7 +29,6 @@ let combo_operand chip = function
 
 let emulate_cycle chip =
   let opcode, operand = fetch_opcode chip in
-
   match opcode with
   (*adv*)
   | 0 ->
@@ -34,12 +40,14 @@ let emulate_cycle chip =
   | 2 -> chip.b <- combo_operand chip operand % 8
   (*jnz*)
   | 3 ->
-      if not (chip.a = 0) then
+      if not @@ equal chip.a zero then
         chip.ip <- operand
   (*bxc*)
   | 4 -> chip.b <- chip.b lxor chip.c
   (*out*)
-  | 5 -> combo_operand chip operand % 8 |> Stdio.printf "%i,"
+  | 5 ->
+      let out = combo_operand chip operand % 8 in
+      chip.out_channel <- out :: chip.out_channel
   (*bdv*)
   | 6 ->
       let d = 2 ** combo_operand chip operand in
@@ -51,6 +59,17 @@ let emulate_cycle chip =
   | _ -> failwith "unknown opcode"
 
 
+let clone chip =
+  {
+    a = chip.a;
+    b = chip.b;
+    c = chip.c;
+    ip = chip.ip;
+    instructions = chip.instructions;
+    out_channel = chip.out_channel;
+  }
+
+
 let initialize_chip () =
   let input =
     InputReader.read_lines_filter ~path:"input" ~f:(fun line ->
@@ -60,15 +79,53 @@ let initialize_chip () =
         | _ -> None)
     |> List.to_array
   in
-  { a = input.(0).(0); b = input.(1).(0); c = input.(2).(0); ip = 0; instructions = input.(3) }
+  let instructions = input.(3) in
+  { a = input.(0).(0); b = input.(1).(0); c = input.(2).(0); ip = 0; instructions; out_channel = [] }
+
+
+let emulate chip =
+  let copy = clone chip in
+  let progam_length = Array.length copy.instructions in
+  while copy.ip < progam_length do
+    emulate_cycle copy
+  done;
+  copy.out_channel |> List.rev
+
+
+let find_a chip =
+  let instructions = chip.instructions |> Array.rev in
+  let rec aux a prg_pos =
+    if abs prg_pos >= Array.length instructions then
+      Some a
+    else
+      let rec loop i =
+        if i >= 8 then
+          None
+        else (
+          chip.a <- (a * 8) + i;
+          let hd = emulate chip |> List.hd_exn in
+          if hd = instructions.(prg_pos) then
+            match aux ((a * 8) + i) (prg_pos + 1) with
+            | None -> loop (i + 1)
+            | Some value -> Some value
+          else
+            loop (i + 1))
+      in
+      loop 0
+  in
+  aux 0 0
+
+
+let rec print_output = function
+  | [] -> ()
+  | [ x ] -> Stdio.printf "%i\n" x
+  | hd :: tl ->
+      Stdio.printf "%i," hd;
+      print_output tl
 
 
 let () =
   let chip = initialize_chip () in
-
-  let progam_length = Array.length chip.instructions in
-
-  while chip.ip < progam_length do
-    emulate_cycle chip
-  done;
-  Stdio.printf "\n"
+  Stdio.printf "Part 1:\t";
+  emulate chip |> print_output;
+  find_a chip |> Option.value_exn |> Stdio.printf "Part 2:\t%i\n"
