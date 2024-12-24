@@ -1,0 +1,5 @@
+(executable
+ (public_name day20)
+ (name main)
+ (libraries util)
+ (preprocess (pps ppx_sexp_conv)))
