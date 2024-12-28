@@ -1,68 +1,127 @@
 open MyBase
+open Graph
 
-type path = Vector2.t List.t [@@deriving compare, sexp_of]
+module Node = struct
+  type t = int * int
 
-let neighbors walls pos =
-  adj4 pos
-  |> List.filter ~f:(fun n -> not @@ List.mem walls n ~equal:Vector2.equal)
-  |> List.map ~f:(fun p -> (p, 1.))
-
-
-(*Find all paths from pos with length n*)
-let n_paths ~bounds n pos =
-  let rec aux n paths =
-    if n <= 0 then
-      paths
-    else
-      let new_paths =
-        List.concat_map paths ~f:(fun path ->
-            match path with
-            | hd :: _ ->
-                adj4 hd
-                |> List.filter ~f:(fun pos ->
-                       (not @@ List.mem path pos ~equal:Vector2.equal) && CharGrid.in_bounds ~bounds pos)
-                |> List.map ~f:(fun p -> p :: path)
-            | [] -> failwith "")
-      in
-      aux (n - 1) new_paths
-  in
-  let res = aux (n - 1) [ [ pos ] ] in
-  res
+  let compare (x1, y1) (x2, y2) =
+    match Stdlib.compare x1 x2 with
+    | 0 -> Stdlib.compare y1 y2
+    | c -> c
 
 
-let cheat_positions ~obstacles ~bounds path =
-  let is_obstacle pos = List.mem obstacles pos ~equal:Vector2.equal in
-  List.mapi path ~f:(fun i pos ->
-      n_paths ~bounds 3 pos
-      |> List.filter_map ~f:(fun path ->
-             let hd = List.hd_exn path in
-             if not @@ is_obstacle hd then
-               Some (hd, i + 2)
-             else
-               None))
-  |> List.concat
+  let hash = Base.Hashtbl.hash
+  let equal (x1, y1) (x2, y2) = x1 = x2 && y1 = y2
+end
+
+module Int = struct
+  type t = int
+
+  let compare = compare
+  let hash = Base.Hashtbl.hash
+  let equal = ( = )
+  let default = 0
+end
+
+module G = Imperative.Digraph.AbstractLabeled (Node) (Int)
+open G
+
+module W = struct
+  type edge = G.E.t
+  type t = int
+
+  let weight x = G.E.label x
+  let zero = 0
+  let add = ( + )
+  let sub = ( - )
+  let compare = compare
+end
+
+module BF = Path.BellmanFord (G) (W)
+
+let create_graph input =
+  let height = Array.length input in
+  let width = input.(0) |> Array.length in
+
+  let g = G.create () in
+  let vertex_tbl = Hashtbl.create () in
+  let edge_tbl = Hashtbl.create () in
+
+  Array.iteri input ~f:(fun y row ->
+      Array.iteri row ~f:(fun x c ->
+          if not (Char.equal c '#') then (
+            let v = G.V.create (x, y) in
+            G.add_vertex g v;
+            Hashtbl.add_exn vertex_tbl ~key:(x, y) ~data:v)));
+
+  G.iter_vertex
+    (fun v1 ->
+      let x, y = G.V.label v1 in
+      List.map cardinals ~f:(fun (off_x, off_y) -> (x + off_x, y + off_y))
+      |> List.filter ~f:(fun (x, y) -> x >= 0 && y >= 0 && x < width && y < height)
+      |> List.filter ~f:(fun (x, y) -> not (Char.equal input.(y).(x) '#'))
+      |> List.iter ~f:(fun (x, y) ->
+          let v2 = Hashtbl.find_exn vertex_tbl (x, y) in
+          match Hashtbl.find edge_tbl (v1, v2) with
+          | Some e -> ignore ""
+          | None -> begin
+              let edge = G.E.create v1 1 v2 in
+              G.add_edge_e g edge;
+              Hashtbl.add_exn edge_tbl ~key:(v1, v2) ~data:edge
+            end))
+    g;
+
+  let start = Hashtbl.find_exn vertex_tbl (CharGrid.find input 'S' |> Vector2.to_tuple) in
+  let target = Hashtbl.find_exn vertex_tbl (CharGrid.find input 'E' |> Vector2.to_tuple) in
+  (g, start, target)
+
+
+let distance v1 v2 =
+  let x1, y1 = G.V.label v1 in
+  let x2, y2 = G.V.label v2 in
+  abs (x1 - x2) + abs (y1 - y2)
+
+
+(** Counts all cheats with positive savings *)
+let count_cheats g sps spt no_cheat_cost max_cheat_length min_savings =
+  let i = ref 0 in
+
+  let stbl = Hashtbl.create () in
+
+  G.iter_vertex
+    (fun v1 ->
+      G.iter_vertex
+        (fun v2 ->
+          let d = distance v1 v2 in
+          if d >= 2 && d <= max_cheat_length then (
+            let d1 = BF.H.find sps v1 in
+            let d2 = BF.H.find spt v2 in
+            let cost = d1 + d + d2 in
+            let savings = no_cheat_cost - cost in
+            if savings >= min_savings then
+              i := !i + 1;
+            match Hashtbl.find stbl savings with
+            | Some i -> i := !i + 1
+            | None ->
+                let i = ref 1 in
+                Hashtbl.add_exn stbl ~key:savings ~data:i))
+        g)
+    g;
+
+  !i
 
 
 let () =
-  let open CharGrid in
-  let open Pathfinder in
-  let open Vector2 in
   let input = read_lines ~path:"input" ~f:String.to_array |> List.to_array in
-  let walls = find_all input '#' in
-  let start = find input 'S' in
-  let goal = find input 'E' in
-  let bounds = { x = width input; y = height input } in
+  let g, start, target = create_graph input in
 
-  let predecessors, distances = dijkstra (module Vector2) ~neighbors:(neighbors walls) ~goal in
+  let sps = BF.all_shortest_paths g start in
+  let spt = BF.all_shortest_paths g target in
 
-  let default_path = trace_back predecessors ~start |> Option.value_exn in
-  let default_path_cost = Hashtbl.find_exn distances start in
+  let no_cheat_cost = BF.H.find sps target in
 
-  let positions = cheat_positions ~obstacles:walls ~bounds default_path in
-  let res =
-    List.count positions ~f:(fun (pos, cost) ->
-        let cost_from_cheat = Hashtbl.find_exn distances pos in
-        let new_cost = Float.of_int cost +. cost_from_cheat in
-        Float.(default_path_cost - new_cost >= 100.))
-  in
-  Stdio.printf "Part 1: %i\n" res
+  let part_a = count_cheats g sps spt no_cheat_cost 2 100 in
+  let part_b = count_cheats g sps spt no_cheat_cost 20 100 in
+
+  Stdio.printf "Number of cheats of length 2: %d\n" part_a;
+  Stdio.printf "Number of cheats of length 20: %d" part_b
