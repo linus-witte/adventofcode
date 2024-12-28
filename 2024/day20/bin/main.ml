@@ -8,36 +8,26 @@ let neighbors walls pos =
   |> List.map ~f:(fun p -> (p, 1.))
 
 
-(*Find all paths from pos with length n*)
-let n_paths ~bounds n pos =
-  let rec aux n paths =
-    if n <= 0 then
-      paths
+let manhattan_positions ~distance ~in_bounds pos =
+  let rec explore_positions pos acc remaining_distance =
+    if remaining_distance = 0 then
+      if in_bounds pos then
+        pos :: acc
+      else
+        acc
     else
-      let new_paths =
-        List.concat_map paths ~f:(fun path ->
-            match path with
-            | hd :: _ ->
-                adj4 hd
-                |> List.filter ~f:(fun pos ->
-                       (not @@ List.mem path pos ~equal:Vector2.equal) && CharGrid.in_bounds ~bounds pos)
-                |> List.map ~f:(fun p -> p :: path)
-            | [] -> failwith "")
-      in
-      aux (n - 1) new_paths
+      adj4 pos |> List.fold ~init:acc ~f:(fun acc p -> explore_positions p acc (remaining_distance - 1))
   in
-  let res = aux (n - 1) [ [ pos ] ] in
-  res
+  explore_positions pos [] distance
 
 
-let cheat_positions ~obstacles ~bounds path =
+let cheat_positions ~obstacles ~bounds ~cheat_len path =
   let is_obstacle pos = List.mem obstacles pos ~equal:Vector2.equal in
   List.mapi path ~f:(fun i pos ->
-      n_paths ~bounds 3 pos
-      |> List.filter_map ~f:(fun path ->
-             let hd = List.hd_exn path in
-             if not @@ is_obstacle hd then
-               Some (hd, i + 2)
+      manhattan_positions ~distance:(cheat_len + 1) ~in_bounds:(CharGrid.in_bounds ~bounds) pos
+      |> List.filter_map ~f:(fun p ->
+             if not @@ is_obstacle p then
+               Some (p, i + 2)
              else
                None))
   |> List.concat
@@ -53,16 +43,30 @@ let () =
   let goal = find input 'E' in
   let bounds = { x = width input; y = height input } in
 
-  let predecessors, distances = dijkstra (module Vector2) ~neighbors:(neighbors walls) ~goal in
+  let res = manhattan_positions ~distance:2 ~in_bounds:(CharGrid.in_bounds ~bounds) start in
 
-  let default_path = trace_back predecessors ~start |> Option.value_exn in
-  let default_path_cost = Hashtbl.find_exn distances start in
+  Stdio.printf "%s\n" (sexp_of_path res |> Sexp.to_string_hum)
 
-  let positions = cheat_positions ~obstacles:walls ~bounds default_path in
-  let res =
-    List.count positions ~f:(fun (pos, cost) ->
-        let cost_from_cheat = Hashtbl.find_exn distances pos in
-        let new_cost = Float.of_int cost +. cost_from_cheat in
-        Float.(default_path_cost - new_cost >= 100.))
-  in
-  Stdio.printf "Part 1: %i\n" res
+(**)
+(*let predecessors, distances = dijkstra (module Vector2) ~neighbors:(neighbors walls) ~goal in*)
+(**)
+(*let default_path = trace_back predecessors ~start |> Option.value_exn in*)
+(*let default_path_cost = Hashtbl.find_exn distances start in*)
+(**)
+(*let positions = cheat_positions ~obstacles:walls ~bounds ~cheat_len:2 default_path in*)
+(*let res =*)
+(*  List.count positions ~f:(fun (pos, cost) ->*)
+(*      let cost_from_cheat = Hashtbl.find_exn distances pos in*)
+(*      let new_cost = Float.of_int cost +. cost_from_cheat in*)
+(*      Float.(default_path_cost - new_cost >= 100.))*)
+(*in*)
+(*Stdio.printf "Part 1: %i\n%!" res;*)
+(**)
+(*let positions = cheat_positions ~obstacles:walls ~bounds ~cheat_len:20 default_path in*)
+(*let res =*)
+(*  List.count positions ~f:(fun (pos, cost) ->*)
+(*      let cost_from_cheat = Hashtbl.find_exn distances pos in*)
+(*      let new_cost = Float.of_int cost +. cost_from_cheat in*)
+(*      Float.(default_path_cost - new_cost >= 100.))*)
+(*in*)
+(*Stdio.printf "Part 2: %i\n%!" res*)
