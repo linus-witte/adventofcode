@@ -21,3 +21,17 @@ where
 pub fn read_lines() -> io::Result<Vec<String>> {
     return read_input(|line| line.to_owned());
 }
+
+pub const DIAGS: [(i32, i32); 4] = [(-1, -1), (-1, 1), (1, -1), (1, 1)];
+pub const CARDINALS: [(i32, i32); 4] = [(0, -1), (0, 1), (-1, 0), (1, 0)];
+pub const ADJ4: [(i32, i32); 4] = CARDINALS;
+pub const ADJ8: [(i32, i32); 8] = [
+    (-1, -1),
+    (-1, 1),
+    (1, -1),
+    (1, 1),
+    (0, -1),
+    (0, 1),
+    (-1, 0),
+    (1, 0),
+];
