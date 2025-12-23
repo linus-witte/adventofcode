@@ -35,3 +35,17 @@ pub const ADJ8: [(i32, i32); 8] = [
     (-1, 0),
     (1, 0),
 ];
+
+pub fn fixpoint<T, F>(mut x: T, f: F) -> T
+where
+    T: Eq,
+    F: Fn(&T) -> T,
+{
+    loop {
+        let next = f(&x);
+        if next == x {
+            return x;
+        }
+        x = next;
+    }
+}
